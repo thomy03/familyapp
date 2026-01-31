@@ -1,122 +1,156 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
+import { useSession } from 'next-auth/react'
 
 export type Task = {
   id: string
   title: string
   date: string // YYYY-MM-DD
-  deadline?: Date
+  time?: string | null // HH:MM (optional, for appointments)
   points: number
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
-  difficulty: 'easy' | 'normal' | 'hard' | 'epic'
+  difficulty: string
   duration: string
   status: 'PENDING' | 'COMPLETED'
-  assigneeId: string
-  assigneeName: string
-  createdAt: Date
+  assigneeId: string | null
+  assignee?: {
+    id: string
+    name: string | null
+    email: string
+    avatar: string | null
+  } | null
+  createdAt: string
 }
 
 type TasksContextType = {
   tasks: Task[]
-  addTask: (task: Omit<Task, 'id' | 'createdAt' | 'status'>) => void
-  completeTask: (id: string) => void
+  isLoading: boolean
+  addTask: (task: {
+    title: string
+    date: string
+    time?: string
+    points: number
+    priority: string
+    difficulty: string
+    duration: string
+    assigneeId: string
+  }) => Promise<void>
+  completeTask: (id: string) => Promise<void>
+  deleteTask: (id: string) => Promise<void>
+  refreshTasks: () => Promise<void>
   getTasksForDate: (date: string) => Task[]
-  getTasksForUser: (userId: string) => Task[]
   getPendingTasks: () => Task[]
-  clearAllTasks: () => void
 }
 
 const TasksContext = createContext<TasksContextType | null>(null)
 
-// Demo task IDs to detect and remove
-const DEMO_TASK_IDS = ['1', '2', '3']
-
 export function TasksProvider({ children }: { children: ReactNode }) {
+  const { data: session } = useSession()
   const [tasks, setTasks] = useState<Task[]>([])
-  const [isLoaded, setIsLoaded] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Load from localStorage on mount
-  useEffect(() => {
-    const stored = localStorage.getItem('familyflow-tasks')
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored)
-        // Check if this is demo data - if any task has demo IDs, clear everything
-        const hasDemoData = parsed.some((t: any) => DEMO_TASK_IDS.includes(t.id))
-        if (hasDemoData) {
-          console.log('Clearing demo data...')
-          localStorage.removeItem('familyflow-tasks')
-          setTasks([])
-        } else {
-          setTasks(parsed.map((t: any) => ({
-            ...t,
-            createdAt: new Date(t.createdAt),
-            deadline: t.deadline ? new Date(t.deadline) : undefined,
-          })))
-        }
-      } catch {
-        setTasks([])
-      }
-    } else {
+  // Fetch tasks from API
+  const refreshTasks = useCallback(async () => {
+    if (!session?.user) {
       setTasks([])
+      setIsLoading(false)
+      return
     }
-    setIsLoaded(true)
-  }, [])
 
-  // Save to localStorage on change
+    try {
+      const res = await fetch('/api/tasks')
+      if (res.ok) {
+        const data = await res.json()
+        setTasks(data.tasks || [])
+      }
+    } catch (error) {
+      console.error('Error fetching tasks:', error)
+    }
+    setIsLoading(false)
+  }, [session])
+
+  // Load tasks on mount and when session changes
   useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem('familyflow-tasks', JSON.stringify(tasks))
-    }
-  }, [tasks, isLoaded])
+    refreshTasks()
+  }, [refreshTasks])
 
-  const addTask = (taskData: Omit<Task, 'id' | 'createdAt' | 'status'>) => {
-    const newTask: Task = {
-      ...taskData,
-      id: Date.now().toString(),
-      status: 'PENDING',
-      createdAt: new Date(),
+  const addTask = async (taskData: {
+    title: string
+    date: string
+    time?: string
+    points: number
+    priority: string
+    difficulty: string
+    duration: string
+    assigneeId: string
+  }) => {
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(taskData),
+      })
+      
+      if (res.ok) {
+        const data = await res.json()
+        setTasks(prev => [...prev, data.task])
+      }
+    } catch (error) {
+      console.error('Error adding task:', error)
     }
-    setTasks(prev => [...prev, newTask])
   }
 
-  const completeTask = (id: string) => {
-    setTasks(prev => prev.map(t => 
-      t.id === id ? { ...t, status: 'COMPLETED' as const } : t
-    ))
+  const completeTask = async (id: string) => {
+    try {
+      const res = await fetch(`/api/tasks/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'COMPLETED' }),
+      })
+      
+      if (res.ok) {
+        setTasks(prev => prev.map(t => 
+          t.id === id ? { ...t, status: 'COMPLETED' as const } : t
+        ))
+      }
+    } catch (error) {
+      console.error('Error completing task:', error)
+    }
+  }
+
+  const deleteTask = async (id: string) => {
+    try {
+      const res = await fetch(`/api/tasks/${id}`, {
+        method: 'DELETE',
+      })
+      
+      if (res.ok) {
+        setTasks(prev => prev.filter(t => t.id !== id))
+      }
+    } catch (error) {
+      console.error('Error deleting task:', error)
+    }
   }
 
   const getTasksForDate = (date: string) => {
     return tasks.filter(t => t.date === date && t.status === 'PENDING')
   }
 
-  const getTasksForUser = (userId: string) => {
-    return tasks.filter(t => t.assigneeId === userId)
-  }
-
   const getPendingTasks = () => {
     return tasks.filter(t => t.status === 'PENDING')
   }
 
-  const clearAllTasks = () => {
-    setTasks([])
-    localStorage.removeItem('familyflow-tasks')
-  }
-
-  if (!isLoaded) {
-    return null
-  }
-
   return (
     <TasksContext.Provider value={{ 
-      tasks, 
+      tasks,
+      isLoading,
       addTask, 
-      completeTask, 
-      getTasksForDate, 
-      getTasksForUser,
+      completeTask,
+      deleteTask,
+      refreshTasks,
+      getTasksForDate,
       getPendingTasks,
-      clearAllTasks
     }}>
       {children}
     </TasksContext.Provider>

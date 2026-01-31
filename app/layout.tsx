@@ -6,6 +6,15 @@ export const metadata: Metadata = {
   title: 'FamilyFlow',
   description: 'Gestion de tâches familiales fun et TDAH-friendly',
   manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'FamilyFlow',
+  },
+  icons: {
+    icon: '/icon-192.png',
+    apple: '/icon-192.png',
+  },
 }
 
 export const viewport: Viewport = {
@@ -13,6 +22,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({

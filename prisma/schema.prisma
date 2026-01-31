@@ -47,7 +47,8 @@ model Task {
   id          String     @id @default(cuid())
   title       String
   description String?
-  date        String     // YYYY-MM-DD
+  date        String
+  time        String?   // HH:MM for appointments     // YYYY-MM-DD
   deadline    DateTime?
   points      Int        @default(10)
   priority    Priority   @default(MEDIUM)

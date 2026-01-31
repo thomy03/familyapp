@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTasks } from '@/lib/tasks-context'
 
 const DAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
@@ -21,10 +21,12 @@ const durations = [
   { id: '120', label: '2h+', points: 40 },
 ]
 
-const familyMembers = [
-  { id: '1', name: 'Thomas', emoji: '👨' },
-  { id: '2', name: 'Iana', emoji: '👩' },
-]
+type FamilyMember = {
+  id: string
+  name: string | null
+  email: string
+  avatar: string | null
+}
 
 function getDaysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate()
@@ -43,12 +45,27 @@ export default function CalendarPage() {
   const [currentYear, setCurrentYear] = useState(today.getFullYear())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [showAddTask, setShowAddTask] = useState(false)
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
   
   // Form state
   const [newTitle, setNewTitle] = useState('')
+  const [newTime, setNewTime] = useState('')
   const [newDifficulty, setNewDifficulty] = useState('normal')
   const [newDuration, setNewDuration] = useState('15')
   const [newAssignee, setNewAssignee] = useState('')
+
+  // Fetch family members
+  useEffect(() => {
+    fetch('/api/family/me')
+      .then(res => res.json())
+      .then(data => {
+        if (data.family?.members) {
+          setFamilyMembers(data.family.members)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   const daysInMonth = getDaysInMonth(currentYear, currentMonth)
   const firstDay = getFirstDayOfMonth(currentYear, currentMonth)
@@ -74,31 +91,36 @@ export default function CalendarPage() {
     return `${currentYear}-${m}-${d}`
   }
 
-  const handleAddTask = () => {
+  const handleAddTask = async () => {
     if (!selectedDate || !newTitle.trim() || !newAssignee) return
-    const member = familyMembers.find(m => m.id === newAssignee)!
     
-    addTask({
-      title: newTitle.trim(),
-      date: selectedDate,
-      points: calculatedPoints,
-      priority: selectedDiff.priority,
-      difficulty: newDifficulty as any,
-      duration: newDuration,
-      assigneeId: member.id,
-      assigneeName: member.name,
-    })
-    
-    setNewTitle('')
-    setNewDifficulty('normal')
-    setNewDuration('15')
-    setNewAssignee('')
-    setShowAddTask(false)
+    setIsSubmitting(true)
+    try {
+      await addTask({
+        title: newTitle.trim(),
+        date: selectedDate,
+        time: newTime || undefined,
+        points: calculatedPoints,
+        priority: selectedDiff.priority,
+        difficulty: newDifficulty,
+        duration: newDuration,
+        assigneeId: newAssignee,
+      })
+      
+      setNewTitle('')
+      setNewTime('')
+      setNewDifficulty('normal')
+      setNewDuration('15')
+      setNewAssignee('')
+      setShowAddTask(false)
+    } catch (error) {
+      console.error('Error adding task:', error)
+    }
+    setIsSubmitting(false)
   }
 
   const selectedTasks = selectedDate ? getTasksForDate(selectedDate) : []
 
-  // Check if date has tasks
   const hasTasksOnDate = (dateStr: string) => {
     return tasks.some(t => t.date === dateStr && t.status === 'PENDING')
   }
@@ -171,19 +193,24 @@ export default function CalendarPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {selectedTasks.map((task) => (
-                <div key={task.id} className={`card border-l-4 ${task.priority === 'URGENT' ? 'border-l-red-500' : task.priority === 'HIGH' ? 'border-l-orange-500' : task.priority === 'MEDIUM' ? 'border-l-yellow-400' : 'border-l-green-400'}`}>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-gray-800">{task.title}</p>
-                      <p className="text-xs text-gray-400">👤 {task.assigneeName} · ⭐ {task.points} pts</p>
+              {selectedTasks.map((task) => {
+                const assigneeName = task.assignee?.name || task.assignee?.email?.split('@')[0] || 'Non assigné'
+                const assigneeAvatar = task.assignee?.avatar || '👤'
+                return (
+                  <div key={task.id} className={`card border-l-4 ${task.priority === 'URGENT' ? 'border-l-red-500' : task.priority === 'HIGH' ? 'border-l-orange-500' : task.priority === 'MEDIUM' ? 'border-l-yellow-400' : 'border-l-green-400'}`}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-gray-800">{task.title}</p>
+                        {task.time && <p className="text-sm text-indigo-600">🕐 {task.time}</p>}
+                        <p className="text-xs text-gray-400">{assigneeAvatar} {assigneeName} · ⭐ {task.points} pts</p>
+                      </div>
+                      <button onClick={() => completeTask(task.id)} className="w-8 h-8 rounded-full border-2 border-gray-300 hover:border-green-500 hover:bg-green-50 flex items-center justify-center group">
+                        <span className="opacity-0 group-hover:opacity-100 text-green-500">✓</span>
+                      </button>
                     </div>
-                    <button onClick={() => completeTask(task.id)} className="w-8 h-8 rounded-full border-2 border-gray-300 hover:border-green-500 hover:bg-green-50 flex items-center justify-center group">
-                      <span className="opacity-0 group-hover:opacity-100 text-green-500">✓</span>
-                    </button>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
@@ -200,6 +227,13 @@ export default function CalendarPage() {
           <div className="space-y-4">
             <input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Nom de la tâche..."
               className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500" autoFocus />
+            
+            {/* Time field */}
+            <div>
+              <p className="text-xs text-gray-500 mb-2">Heure (optionnel)</p>
+              <input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
             
             <div>
               <p className="text-xs text-gray-500 mb-2">Difficulté</p>
@@ -224,14 +258,18 @@ export default function CalendarPage() {
 
             <div>
               <p className="text-xs text-gray-500 mb-2">Assigné à</p>
-              <div className="flex gap-2">
-                {familyMembers.map(m => (
-                  <button key={m.id} onClick={() => setNewAssignee(m.id)} className={`flex-1 p-3 rounded-xl border-2 flex items-center justify-center gap-2 ${newAssignee === m.id ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200'}`}>
-                    <span className="text-xl">{m.emoji}</span>
-                    <span className="text-sm font-medium">{m.name}</span>
-                  </button>
-                ))}
-              </div>
+              {familyMembers.length > 0 ? (
+                <div className="flex gap-2">
+                  {familyMembers.map(m => (
+                    <button key={m.id} onClick={() => setNewAssignee(m.id)} className={`flex-1 p-3 rounded-xl border-2 flex items-center justify-center gap-2 ${newAssignee === m.id ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200'}`}>
+                      <span className="text-xl">{m.avatar || '👤'}</span>
+                      <span className="text-sm font-medium">{m.name || m.email.split('@')[0]}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-sm">Chargement...</p>
+              )}
             </div>
 
             <div className="bg-amber-50 rounded-xl p-3 flex items-center justify-between">
@@ -239,7 +277,9 @@ export default function CalendarPage() {
               <span className="text-xl font-bold text-amber-600">⭐ {calculatedPoints}</span>
             </div>
 
-            <button onClick={handleAddTask} disabled={!newTitle.trim() || !newAssignee} className="btn btn-primary w-full disabled:opacity-50">Créer la tâche ✨</button>
+            <button onClick={handleAddTask} disabled={!newTitle.trim() || !newAssignee || isSubmitting} className="btn btn-primary w-full disabled:opacity-50">
+              {isSubmitting ? 'Création...' : 'Créer la tâche ✨'}
+            </button>
           </div>
         </div>
       )}

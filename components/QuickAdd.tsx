@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useTasks } from '@/lib/tasks-context'
+import { useSession } from 'next-auth/react'
 
 const difficulties = [
   { id: 'easy', label: 'Facile', emoji: '🟢', multiplier: 1, priority: 'LOW' as const },
@@ -18,28 +19,58 @@ const durations = [
   { id: '120', label: '2h+', points: 40 },
 ]
 
-const familyMembers = [
-  { id: '1', name: 'Thomas', emoji: '👨' },
-  { id: '2', name: 'Iana', emoji: '👩' },
-]
+type FamilyMember = {
+  id: string
+  name: string | null
+  email: string
+  avatar: string | null
+}
 
 export function QuickAdd() {
   const { addTask } = useTasks()
+  const { data: session } = useSession()
   const [isOpen, setIsOpen] = useState(false)
   const [step, setStep] = useState(1)
   const [title, setTitle] = useState('')
   const [difficulty, setDifficulty] = useState('normal')
   const [duration, setDuration] = useState('15')
   const [assignee, setAssignee] = useState('')
+  const [taskDate, setTaskDate] = useState(new Date().toISOString().split('T')[0])
+  const [taskTime, setTaskTime] = useState('')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [aiTip, setAiTip] = useState<string | null>(null)
   const [aiSuggested, setAiSuggested] = useState(false)
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([])
+
+  // Fetch family members
+  useEffect(() => {
+    fetch('/api/family/me')
+      .then(res => res.json())
+      .then(data => {
+        if (data.family?.members) {
+          setFamilyMembers(data.family.members)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   const selectedDiff = difficulties.find(d => d.id === difficulty)!
   const selectedDur = durations.find(d => d.id === duration)!
   const calculatedPoints = Math.round(selectedDur.points * selectedDiff.multiplier)
 
-  // Ask AI for suggestion
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr)
+    const today = new Date()
+    const tomorrow = new Date(today)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    
+    if (dateStr === today.toISOString().split('T')[0]) return "Aujourd'hui"
+    if (dateStr === tomorrow.toISOString().split('T')[0]) return "Demain"
+    
+    return date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
+  }
+
   const analyzeTask = useCallback(async (taskTitle: string) => {
     if (taskTitle.length < 3) return
     
@@ -56,7 +87,6 @@ export function QuickAdd() {
       if (res.ok) {
         const data = await res.json()
         
-        // Apply AI suggestions
         if (data.difficulty && difficulties.some(d => d.id === data.difficulty)) {
           setDifficulty(data.difficulty)
         }
@@ -80,22 +110,29 @@ export function QuickAdd() {
     setStep(2)
   }
 
-  const handleSubmit = () => {
-    const member = familyMembers.find(m => m.id === assignee)
-    if (!member || !title.trim()) return
-
-    addTask({
-      title: title.trim(),
-      date: new Date().toISOString().split('T')[0],
-      points: calculatedPoints,
-      priority: selectedDiff.priority,
-      difficulty: difficulty as any,
-      duration,
-      assigneeId: member.id,
-      assigneeName: member.name,
-    })
+  const handleSubmit = async () => {
+    if (!assignee || !title.trim()) return
     
-    resetForm()
+    setIsSubmitting(true)
+    
+    try {
+      await addTask({
+        title: title.trim(),
+        date: taskDate,
+        time: taskTime || undefined,
+        points: calculatedPoints,
+        priority: selectedDiff.priority,
+        difficulty: difficulty,
+        duration,
+        assigneeId: assignee,
+      })
+      
+      resetForm()
+    } catch (error) {
+      console.error('Error creating task:', error)
+    }
+    
+    setIsSubmitting(false)
   }
 
   const resetForm = () => {
@@ -103,6 +140,8 @@ export function QuickAdd() {
     setDifficulty('normal')
     setDuration('15')
     setAssignee('')
+    setTaskDate(new Date().toISOString().split('T')[0])
+    setTaskTime('')
     setStep(1)
     setIsOpen(false)
     setAiTip(null)
@@ -127,7 +166,7 @@ export function QuickAdd() {
   return (
     <div className="card border-2 border-indigo-400 bg-gradient-to-br from-white to-indigo-50/30 animate-slideUp">
       <div className="flex gap-1 mb-4">
-        {[1, 2, 3].map(s => (
+        {[1, 2, 3, 4].map(s => (
           <div key={s} className={`h-1 flex-1 rounded-full ${s <= step ? 'bg-indigo-500' : 'bg-gray-200'}`} />
         ))}
       </div>
@@ -171,6 +210,55 @@ export function QuickAdd() {
       )}
 
       {step === 2 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">📅</span>
+            <h3 className="font-semibold text-gray-700">Quand ?</h3>
+          </div>
+
+          <div>
+            <p className="text-xs text-gray-500 mb-2">Date</p>
+            <input
+              type="date"
+              value={taskDate}
+              onChange={(e) => setTaskDate(e.target.value)}
+              min={new Date().toISOString().split('T')[0]}
+              className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <p className="text-sm text-indigo-600 mt-1">{formatDate(taskDate)}</p>
+          </div>
+
+          <div>
+            <p className="text-xs text-gray-500 mb-2">Heure (optionnel - pour les RDV)</p>
+            <div className="flex gap-2">
+              <input
+                type="time"
+                value={taskTime}
+                onChange={(e) => setTaskTime(e.target.value)}
+                className="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              {taskTime && (
+                <button 
+                  onClick={() => setTaskTime('')}
+                  className="px-3 bg-gray-100 rounded-xl text-gray-500 hover:bg-gray-200"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            {taskTime && (
+              <p className="text-sm text-indigo-600 mt-1">🕐 RDV à {taskTime}</p>
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            <button onClick={() => setStep(1)} className="btn bg-gray-100 text-gray-600">← Retour</button>
+            <button onClick={() => setStep(3)} className="btn btn-primary flex-1">Suivant →</button>
+          </div>
+        </div>
+      )}
+
+      {step === 3 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -236,39 +324,49 @@ export function QuickAdd() {
           </div>
 
           <div className="flex gap-2">
-            <button onClick={() => setStep(1)} className="btn bg-gray-100 text-gray-600">← Retour</button>
-            <button onClick={() => setStep(3)} className="btn btn-primary flex-1">Suivant →</button>
+            <button onClick={() => setStep(2)} className="btn bg-gray-100 text-gray-600">← Retour</button>
+            <button onClick={() => setStep(4)} className="btn btn-primary flex-1">Suivant →</button>
           </div>
         </div>
       )}
 
-      {step === 3 && (
+      {step === 4 && (
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <span className="text-2xl">👤</span>
             <h3 className="font-semibold text-gray-700">Qui s'en charge ?</h3>
           </div>
-          <div className="space-y-2">
-            {familyMembers.map(m => (
-              <button 
-                key={m.id} 
-                onClick={() => setAssignee(m.id)} 
-                className={`w-full p-3 rounded-xl border-2 flex items-center gap-3 transition-all ${
-                  assignee === m.id 
-                    ? 'border-indigo-500 bg-indigo-50' 
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <span className="text-2xl">{m.emoji}</span>
-                <span className="font-medium text-gray-700">{m.name}</span>
-                {assignee === m.id && <span className="ml-auto text-indigo-500 text-lg">✓</span>}
-              </button>
-            ))}
-          </div>
+          
+          {familyMembers.length > 0 ? (
+            <div className="space-y-2">
+              {familyMembers.map(m => (
+                <button 
+                  key={m.id} 
+                  onClick={() => setAssignee(m.id)} 
+                  className={`w-full p-3 rounded-xl border-2 flex items-center gap-3 transition-all ${
+                    assignee === m.id 
+                      ? 'border-indigo-500 bg-indigo-50' 
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <span className="text-2xl">{m.avatar || '👤'}</span>
+                  <span className="font-medium text-gray-700">{m.name || m.email.split('@')[0]}</span>
+                  {assignee === m.id && <span className="ml-auto text-indigo-500 text-lg">✓</span>}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-sm">Chargement des membres...</p>
+          )}
+
           <div className="bg-gray-50 rounded-xl p-3 space-y-1 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-500">Tâche</span>
               <span className="font-medium truncate ml-2">{title}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Date</span>
+              <span>{formatDate(taskDate)} {taskTime && `à ${taskTime}`}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500">Difficulté</span>
@@ -283,9 +381,16 @@ export function QuickAdd() {
               <span className="text-amber-600">⭐ {calculatedPoints}</span>
             </div>
           </div>
+          
           <div className="flex gap-2">
-            <button onClick={() => setStep(2)} className="btn bg-gray-100 text-gray-600">← Retour</button>
-            <button onClick={handleSubmit} disabled={!assignee} className="btn btn-primary flex-1">Créer ✨</button>
+            <button onClick={() => setStep(3)} className="btn bg-gray-100 text-gray-600">← Retour</button>
+            <button 
+              onClick={handleSubmit} 
+              disabled={!assignee || isSubmitting} 
+              className="btn btn-primary flex-1"
+            >
+              {isSubmitting ? 'Création...' : 'Créer ✨'}
+            </button>
           </div>
         </div>
       )}
