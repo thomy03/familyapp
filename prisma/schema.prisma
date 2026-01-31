@@ -30,6 +30,7 @@ model User {
   tasksCreated  Task[]    @relation("CreatedBy")
   badges        UserBadge[]
   rewards       RewardClaim[]
+  pushSubscriptions PushSubscription[]
 }
 
 model Family {
@@ -165,4 +166,15 @@ enum Priority {
   MEDIUM
   HIGH
   URGENT
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

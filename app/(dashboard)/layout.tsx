@@ -1,6 +1,7 @@
-import Link from 'next/link'
-import { TasksProvider } from '@/lib/tasks-context'
-import { UserHeader } from '@/components/UserHeader'
+import Link from "next/link"
+import { TasksProvider } from "@/lib/tasks-context"
+import { UserHeader } from "@/components/UserHeader"
+import { NotificationPrompt } from "@/components/NotificationPrompt"
 
 export default function DashboardLayout({
   children,
@@ -27,6 +28,9 @@ export default function DashboardLayout({
             <NavItem href="/rewards" icon="🏆" label="Rewards" />
           </div>
         </nav>
+
+        {/* Notification Prompt */}
+        <NotificationPrompt />
       </div>
     </TasksProvider>
   )
