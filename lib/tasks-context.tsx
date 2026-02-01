@@ -1,25 +1,26 @@
-'use client'
+"use client"
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
-import { useSession } from 'next-auth/react'
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react"
+import { useSession } from "next-auth/react"
+
+export type Assignee = {
+  id: string
+  name: string | null
+  email: string
+  avatar: string | null
+}
 
 export type Task = {
   id: string
   title: string
-  date: string // YYYY-MM-DD
-  time?: string | null // HH:MM (optional, for appointments)
+  date: string
+  time?: string | null
   points: number
-  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
+  priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT"
   difficulty: string
   duration: string
-  status: 'PENDING' | 'COMPLETED'
-  assigneeId: string | null
-  assignee?: {
-    id: string
-    name: string | null
-    email: string
-    avatar: string | null
-  } | null
+  status: "PENDING" | "COMPLETED"
+  assignees: Assignee[]
   createdAt: string
 }
 
@@ -34,10 +35,12 @@ type TasksContextType = {
     priority: string
     difficulty: string
     duration: string
-    assigneeId: string
+    assigneeIds: string[]
   }) => Promise<void>
   completeTask: (id: string) => Promise<void>
   deleteTask: (id: string) => Promise<void>
+  updateTask: (id: string, updates: Partial<{ date: string; time: string | null; title: string }>) => Promise<void>
+  updateTaskAssignees: (id: string, assigneeIds: string[]) => Promise<void>
   refreshTasks: () => Promise<void>
   getTasksForDate: (date: string) => Task[]
   getPendingTasks: () => Task[]
@@ -50,7 +53,6 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
-  // Fetch tasks from API
   const refreshTasks = useCallback(async () => {
     if (!session?.user) {
       setTasks([])
@@ -59,18 +61,17 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const res = await fetch('/api/tasks')
+      const res = await fetch("/api/tasks")
       if (res.ok) {
         const data = await res.json()
         setTasks(data.tasks || [])
       }
     } catch (error) {
-      console.error('Error fetching tasks:', error)
+      console.error("Error fetching tasks:", error)
     }
     setIsLoading(false)
   }, [session])
 
-  // Load tasks on mount and when session changes
   useEffect(() => {
     refreshTasks()
   }, [refreshTasks])
@@ -83,12 +84,12 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     priority: string
     difficulty: string
     duration: string
-    assigneeId: string
+    assigneeIds: string[]
   }) => {
     try {
-      const res = await fetch('/api/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(taskData),
       })
       
@@ -97,48 +98,86 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         setTasks(prev => [...prev, data.task])
       }
     } catch (error) {
-      console.error('Error adding task:', error)
+      console.error("Error adding task:", error)
     }
   }
 
   const completeTask = async (id: string) => {
     try {
       const res = await fetch(`/api/tasks/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'COMPLETED' }),
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "COMPLETED" }),
       })
       
       if (res.ok) {
         setTasks(prev => prev.map(t => 
-          t.id === id ? { ...t, status: 'COMPLETED' as const } : t
+          t.id === id ? { ...t, status: "COMPLETED" as const } : t
         ))
       }
     } catch (error) {
-      console.error('Error completing task:', error)
+      console.error("Error completing task:", error)
     }
   }
 
   const deleteTask = async (id: string) => {
     try {
       const res = await fetch(`/api/tasks/${id}`, {
-        method: 'DELETE',
+        method: "DELETE",
       })
       
       if (res.ok) {
         setTasks(prev => prev.filter(t => t.id !== id))
       }
     } catch (error) {
-      console.error('Error deleting task:', error)
+      console.error("Error deleting task:", error)
+    }
+  }
+
+  const updateTask = async (id: string, updates: Partial<{ date: string; time: string | null; title: string }>) => {
+    try {
+      const res = await fetch(`/api/tasks/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      })
+      
+      if (res.ok) {
+        const data = await res.json()
+        setTasks(prev => prev.map(t => 
+          t.id === id ? { ...t, ...data.task } : t
+        ))
+      }
+    } catch (error) {
+      console.error("Error updating task:", error)
+    }
+  }
+
+  const updateTaskAssignees = async (id: string, assigneeIds: string[]) => {
+    try {
+      const res = await fetch(`/api/tasks/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assigneeIds }),
+      })
+      
+      if (res.ok) {
+        const data = await res.json()
+        setTasks(prev => prev.map(t => 
+          t.id === id ? data.task : t
+        ))
+      }
+    } catch (error) {
+      console.error("Error updating assignees:", error)
     }
   }
 
   const getTasksForDate = (date: string) => {
-    return tasks.filter(t => t.date === date && t.status === 'PENDING')
+    return tasks.filter(t => t.date === date && t.status === "PENDING")
   }
 
   const getPendingTasks = () => {
-    return tasks.filter(t => t.status === 'PENDING')
+    return tasks.filter(t => t.status === "PENDING")
   }
 
   return (
@@ -148,6 +187,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       addTask, 
       completeTask,
       deleteTask,
+      updateTask,
+      updateTaskAssignees,
       refreshTasks,
       getTasksForDate,
       getPendingTasks,
@@ -160,7 +201,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 export function useTasks() {
   const context = useContext(TasksContext)
   if (!context) {
-    throw new Error('useTasks must be used within TasksProvider')
+    throw new Error("useTasks must be used within TasksProvider")
   }
   return context
 }

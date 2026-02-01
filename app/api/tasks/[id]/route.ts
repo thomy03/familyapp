@@ -1,8 +1,7 @@
-import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { prisma } from '@/lib/db'
+import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { prisma } from "@/lib/db"
 
-// PUT - Met à jour une tâche (compléter, modifier)
 export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
@@ -11,27 +10,44 @@ export async function PUT(
     const session = await getServerSession()
     
     if (!session?.user?.email) {
-      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+      return NextResponse.json({ error: "Non authentifié" }, { status: 401 })
     }
 
-    const { status, completedAt, ...updates } = await request.json()
+    const { status, assigneeIds, ...updates } = await request.json()
 
-    // Get user to verify family membership
     const user = await prisma.user.findUnique({
       where: { email: session.user.email }
     })
 
     if (!user) {
-      return NextResponse.json({ error: 'Utilisateur non trouvé' }, { status: 404 })
+      return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 })
     }
 
-    // Verify task belongs to user's family
     const existingTask = await prisma.task.findUnique({
-      where: { id: params.id }
+      where: { id: params.id },
+      include: { assignees: true }
     })
 
     if (!existingTask || existingTask.familyId !== user.familyId) {
-      return NextResponse.json({ error: 'Tâche non trouvée' }, { status: 404 })
+      return NextResponse.json({ error: "Tâche non trouvée" }, { status: 404 })
+    }
+
+    // Update assignees if provided
+    if (assigneeIds !== undefined) {
+      // Delete existing assignees
+      await prisma.taskAssignee.deleteMany({
+        where: { taskId: params.id }
+      })
+      
+      // Create new assignees
+      if (assigneeIds && assigneeIds.length > 0) {
+        await prisma.taskAssignee.createMany({
+          data: assigneeIds.map((userId: string) => ({
+            taskId: params.id,
+            userId
+          }))
+        })
+      }
     }
 
     // Update task
@@ -40,33 +56,43 @@ export async function PUT(
       data: {
         ...updates,
         ...(status && { status }),
-        ...(status === 'COMPLETED' && { completedAt: new Date() }),
+        ...(status === "COMPLETED" && { completedAt: new Date() }),
       },
       include: {
-        assignee: {
-          select: { id: true, name: true, email: true, avatar: true }
+        assignees: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, avatar: true }
+            }
+          }
         }
       }
     })
 
-    // If task completed, add points to assignee
-    if (status === 'COMPLETED' && existingTask.status !== 'COMPLETED') {
-      await prisma.user.update({
-        where: { id: task.assigneeId! },
-        data: {
-          points: { increment: task.points }
-        }
-      })
+    // If task completed, add points to all assignees
+    if (status === "COMPLETED" && existingTask.status !== "COMPLETED") {
+      const pointsPerPerson = Math.floor(task.points / Math.max(1, task.assignees.length))
+      
+      for (const assignee of task.assignees) {
+        await prisma.user.update({
+          where: { id: assignee.userId },
+          data: { points: { increment: pointsPerPerson } }
+        })
+      }
     }
 
-    return NextResponse.json({ task })
+    return NextResponse.json({ 
+      task: {
+        ...task,
+        assignees: task.assignees.map(a => a.user)
+      }
+    })
   } catch (error) {
-    console.error('Update task error:', error)
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+    console.error("Update task error:", error)
+    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
   }
 }
 
-// DELETE - Supprime une tâche
 export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
@@ -75,25 +101,23 @@ export async function DELETE(
     const session = await getServerSession()
     
     if (!session?.user?.email) {
-      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+      return NextResponse.json({ error: "Non authentifié" }, { status: 401 })
     }
 
-    // Get user to verify family membership
     const user = await prisma.user.findUnique({
       where: { email: session.user.email }
     })
 
     if (!user) {
-      return NextResponse.json({ error: 'Utilisateur non trouvé' }, { status: 404 })
+      return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 })
     }
 
-    // Verify task belongs to user's family
     const existingTask = await prisma.task.findUnique({
       where: { id: params.id }
     })
 
     if (!existingTask || existingTask.familyId !== user.familyId) {
-      return NextResponse.json({ error: 'Tâche non trouvée' }, { status: 404 })
+      return NextResponse.json({ error: "Tâche non trouvée" }, { status: 404 })
     }
 
     await prisma.task.delete({
@@ -102,7 +126,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Delete task error:', error)
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+    console.error("Delete task error:", error)
+    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
   }
 }

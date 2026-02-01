@@ -12,9 +12,9 @@ model User {
   name          String?
   email         String    @unique
   emailVerified DateTime?
-  password      String?   // For credentials auth
+  password      String?
   image         String?
-  avatar        String?   // Emoji avatar choisi
+  avatar        String?
   points        Int       @default(0)
   streak        Int       @default(0)
   lastActive    DateTime?
@@ -26,7 +26,7 @@ model User {
   familyId      String?
   accounts      Account[]
   sessions      Session[]
-  tasksAssigned Task[]    @relation("AssignedTo")
+  tasksAssigned TaskAssignee[]
   tasksCreated  Task[]    @relation("CreatedBy")
   badges        UserBadge[]
   rewards       RewardClaim[]
@@ -49,7 +49,7 @@ model Task {
   title       String
   description String?
   date        String
-  time        String?   // HH:MM for appointments     // YYYY-MM-DD
+  time        String?
   deadline    DateTime?
   points      Int        @default(10)
   priority    Priority   @default(MEDIUM)
@@ -62,10 +62,20 @@ model Task {
 
   family      Family?    @relation(fields: [familyId], references: [id])
   familyId    String?
-  assignee    User?      @relation("AssignedTo", fields: [assigneeId], references: [id])
-  assigneeId  String?
+  assignees   TaskAssignee[]
   createdBy   User?      @relation("CreatedBy", fields: [createdById], references: [id])
   createdById String?
+}
+
+model TaskAssignee {
+  id        String   @id @default(cuid())
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  assignedAt DateTime @default(now())
+
+  @@unique([taskId, userId])
 }
 
 model Badge {

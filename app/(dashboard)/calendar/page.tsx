@@ -104,7 +104,7 @@ export default function CalendarPage() {
         priority: selectedDiff.priority,
         difficulty: newDifficulty,
         duration: newDuration,
-        assigneeId: newAssignee,
+        assigneeIds: newAssignee ? [newAssignee] : [],
       })
       
       setNewTitle('')
@@ -194,8 +194,8 @@ export default function CalendarPage() {
           ) : (
             <div className="space-y-2">
               {selectedTasks.map((task) => {
-                const assigneeName = task.assignee?.name || task.assignee?.email?.split('@')[0] || 'Non assigné'
-                const assigneeAvatar = task.assignee?.avatar || '👤'
+                const assigneeName = task.assignees?.length > 0 ? (task.assignees.length === 1 ? (task.assignees[0].name || task.assignees[0].email.split('@')[0]) : task.assignees.length + ' personnes') : 'Non assigné'
+                const assigneeAvatar = task.assignees?.length > 0 ? (task.assignees[0].avatar || '👤') : '👥'
                 return (
                   <div key={task.id} className={`card border-l-4 ${task.priority === 'URGENT' ? 'border-l-red-500' : task.priority === 'HIGH' ? 'border-l-orange-500' : task.priority === 'MEDIUM' ? 'border-l-yellow-400' : 'border-l-green-400'}`}>
                     <div className="flex items-center justify-between">
