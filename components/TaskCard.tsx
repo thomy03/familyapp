@@ -163,30 +163,31 @@ export function TaskCard({ task }: { task: Task }) {
 
   if (task.status === "COMPLETED") {
     return (
-      <div className="card bg-green-50 border-l-4 border-l-green-400 opacity-75">
-        <div className="flex items-start gap-3">
+      <div className="card bg-green-50 border-l-4 border-l-green-400">
+        <div className="flex items-center gap-3">
           <button 
             onClick={async () => {
               await uncompleteTask(task.id)
             }}
-            className="mt-0.5 w-7 h-7 rounded-full bg-green-500 hover:bg-orange-400 flex items-center justify-center transition-colors"
-            title="Annuler la complétion"
+            className="w-10 h-10 rounded-full bg-green-500 hover:bg-orange-500 active:bg-orange-600 flex items-center justify-center transition-colors shadow-md"
+            title="Cliquer pour annuler"
           >
-            <span className="text-white text-sm">✓</span>
+            <span className="text-white text-lg font-bold">✓</span>
           </button>
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-gray-500 line-through">{task.title}</h3>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-xs text-green-600 font-bold">✓ Terminée · +{task.points} pts</span>
             </div>
-            {task.assignees.length > 0 && (
-              <div className="flex items-center gap-1 mt-2">
-                {task.assignees.map(a => (
-                  <span key={a.id} className="text-lg opacity-60">{a.avatar || "👤"}</span>
-                ))}
-              </div>
-            )}
           </div>
+          <button 
+            onClick={async () => {
+              await uncompleteTask(task.id)
+            }}
+            className="px-3 py-1.5 bg-orange-100 text-orange-700 text-xs font-medium rounded-full hover:bg-orange-200 active:bg-orange-300"
+          >
+            Annuler
+          </button>
         </div>
       </div>
     )
