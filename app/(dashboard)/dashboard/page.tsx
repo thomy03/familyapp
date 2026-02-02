@@ -6,8 +6,10 @@ import { QuickAdd } from '@/components/QuickAdd'
 import { AICoach } from '@/components/AICoach'
 
 export default function DashboardPage() {
-  const { getPendingTasks } = useTasks()
+  const { tasks, getPendingTasks } = useTasks()
   const pendingTasks = getPendingTasks()
+  const todayStr = new Date().toISOString().split('T')[0]
+  const completedToday = tasks.filter(t => t.status === 'COMPLETED' && t.date === todayStr)
   
   const today = new Date()
   const dateStr = today.toLocaleDateString('fr-FR', { 
@@ -62,6 +64,18 @@ export default function DashboardPage() {
         </div>
       )}
       
+      {/* Completed Today */}
+      {completedToday.length > 0 && (
+        <section className="space-y-3">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase">Terminées aujourd'hui ({completedToday.length})</h3>
+          {completedToday.map((task, i) => (
+            <div key={task.id}>
+              <TaskCard task={task} />
+            </div>
+          ))}
+        </section>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3 pt-2">
         <div className="card text-center py-3">
