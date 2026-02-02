@@ -52,7 +52,7 @@ function formatDateForDisplay(dateStr: string): string {
 }
 
 export function TaskCard({ task }: { task: Task }) {
-  const { completeTask, deleteTask, updateTaskAssignees, updateTask, tasks } = useTasks()
+  const { completeTask, uncompleteTask, deleteTask, updateTaskAssignees, updateTask, tasks } = useTasks()
   const [showModal, setShowModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showRescheduleModal, setShowRescheduleModal] = useState(false)
@@ -162,8 +162,36 @@ export function TaskCard({ task }: { task: Task }) {
   }
 
   if (task.status === "COMPLETED") {
-    return null
+    return (
+      <div className="card bg-green-50 border-l-4 border-l-green-400 opacity-75">
+        <div className="flex items-start gap-3">
+          <button 
+            onClick={async () => {
+              await uncompleteTask(task.id)
+            }}
+            className="mt-0.5 w-7 h-7 rounded-full bg-green-500 hover:bg-orange-400 flex items-center justify-center transition-colors"
+            title="Annuler la complétion"
+          >
+            <span className="text-white text-sm">✓</span>
+          </button>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-gray-500 line-through">{task.title}</h3>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-xs text-green-600 font-bold">✓ Terminée · +{task.points} pts</span>
+            </div>
+            {task.assignees.length > 0 && (
+              <div className="flex items-center gap-1 mt-2">
+                {task.assignees.map(a => (
+                  <span key={a.id} className="text-lg opacity-60">{a.avatar || "👤"}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
   }
+
 
   return (
     <>
@@ -261,7 +289,10 @@ export function TaskCard({ task }: { task: Task }) {
 
       {/* Reschedule Modal */}
       <Modal isOpen={showRescheduleModal} onClose={() => setShowRescheduleModal(false)}>
-        <h2 className="text-xl font-bold text-gray-800 mb-4">📅 Reprogrammer la tâche</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-gray-800">📅 Reprogrammer la tâche</h2>
+          <button onClick={() => setShowRescheduleModal(false)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">✕</button>
+        </div>
         <p className="text-sm text-gray-500 mb-4">{task.title}</p>
         
         <div className="space-y-4">
@@ -313,7 +344,10 @@ export function TaskCard({ task }: { task: Task }) {
 
       {/* Edit Assignees Modal */}
       <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)}>
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Qui fait cette tâche ?</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-gray-800">Qui fait cette tâche ?</h2>
+          <button onClick={() => setShowEditModal(false)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">✕</button>
+        </div>
         <p className="text-sm text-gray-500 mb-4">{task.title}</p>
         
         <div className="space-y-2 max-h-64 overflow-auto">
