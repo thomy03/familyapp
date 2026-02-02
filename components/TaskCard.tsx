@@ -264,27 +264,41 @@ export function TaskCard({ task }: { task: Task }) {
         </div>
 
         {showMenu && (
-          <div className="absolute right-2 top-12 bg-white shadow-lg rounded-xl border border-gray-100 py-1 z-10">
-            <button 
-              onClick={() => { setShowRescheduleModal(true); setShowMenu(false) }}
-              className="w-full px-4 py-2 text-left text-sm text-gray-600 hover:bg-gray-50"
-            >
-              📅 Changer date/heure
-            </button>
-            <button 
-              onClick={() => { setShowEditModal(true); setShowMenu(false) }}
-              className="w-full px-4 py-2 text-left text-sm text-gray-600 hover:bg-gray-50"
-            >
-              ✏️ Modifier assignés
-            </button>
-            <button 
-              onClick={handleDelete}
-              disabled={isProcessing}
-              className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
-            >
-              🗑️ Supprimer
-            </button>
-          </div>
+          <>
+            {/* Overlay to close menu */}
+            <div 
+              className="fixed inset-0 z-10" 
+              onClick={() => setShowMenu(false)}
+            />
+            <div className="absolute right-2 top-12 bg-white shadow-lg rounded-xl border border-gray-100 py-1 z-20 min-w-[180px]">
+              <button 
+                onClick={() => { setShowRescheduleModal(true); setShowMenu(false) }}
+                className="w-full px-4 py-2.5 text-left text-sm text-gray-600 hover:bg-gray-50"
+              >
+                📅 Changer date/heure
+              </button>
+              <button 
+                onClick={() => { setShowEditModal(true); setShowMenu(false) }}
+                className="w-full px-4 py-2.5 text-left text-sm text-gray-600 hover:bg-gray-50"
+              >
+                ✏️ Modifier assignés
+              </button>
+              <button 
+                onClick={handleDelete}
+                disabled={isProcessing}
+                className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+              >
+                🗑️ Supprimer
+              </button>
+              <hr className="my-1 border-gray-100" />
+              <button 
+                onClick={() => setShowMenu(false)}
+                className="w-full px-4 py-2.5 text-left text-sm text-gray-400 hover:bg-gray-50"
+              >
+                ✕ Fermer
+              </button>
+            </div>
+          </>
         )}
       </div>
 
