@@ -38,7 +38,7 @@ function getFirstDayOfMonth(year: number, month: number) {
 }
 
 export default function CalendarPage() {
-  const { tasks, addTask, completeTask, getTasksForDate } = useTasks()
+  const { tasks, addTask, completeTask, uncompleteTask, getTasksForDate } = useTasks()
   
   const today = new Date()
   const [currentMonth, setCurrentMonth] = useState(today.getMonth())
@@ -120,6 +120,8 @@ export default function CalendarPage() {
   }
 
   const selectedTasks = selectedDate ? getTasksForDate(selectedDate) : []
+  const pendingTasks = selectedTasks.filter(t => t.status === 'PENDING')
+  const completedTasks = selectedTasks.filter(t => t.status === 'COMPLETED')
 
   const hasTasksOnDate = (dateStr: string) => {
     return tasks.some(t => t.date === dateStr && t.status === 'PENDING')
@@ -185,34 +187,69 @@ export default function CalendarPage() {
             <button onClick={() => setShowAddTask(true)} className="btn btn-primary text-sm">+ Ajouter</button>
           </div>
           
-          {selectedTasks.length === 0 ? (
+          {/* Pending Tasks */}
+          {pendingTasks.length > 0 && (
+            <div className="mb-4">
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">À faire ({pendingTasks.length})</h4>
+              <div className="space-y-2">
+                {pendingTasks.map((task) => {
+                  const assigneeName = task.assignees?.length > 0 ? (task.assignees.length === 1 ? (task.assignees[0].name || task.assignees[0].email.split('@')[0]) : task.assignees.length + ' personnes') : 'Non assigné'
+                  const assigneeAvatar = task.assignees?.length > 0 ? (task.assignees[0].avatar || '👤') : '👥'
+                  return (
+                    <div key={task.id} className={`card border-l-4 ${task.priority === 'URGENT' ? 'border-l-red-500' : task.priority === 'HIGH' ? 'border-l-orange-500' : task.priority === 'MEDIUM' ? 'border-l-yellow-400' : 'border-l-green-400'}`}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-gray-800">{task.title}</p>
+                          {task.time && <p className="text-sm text-indigo-600">🕐 {task.time}</p>}
+                          <p className="text-xs text-gray-400">{assigneeAvatar} {assigneeName} · ⭐ {task.points} pts</p>
+                        </div>
+                        <button onClick={() => completeTask(task.id)} className="w-8 h-8 rounded-full border-2 border-gray-300 hover:border-green-500 hover:bg-green-50 flex items-center justify-center group">
+                          <span className="opacity-0 group-hover:opacity-100 text-green-500">✓</span>
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Completed Tasks */}
+          {completedTasks.length > 0 && (
+            <div className="mb-4">
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Terminées ({completedTasks.length})</h4>
+              <div className="space-y-2">
+                {completedTasks.map((task) => {
+                  const assigneeName = task.assignees?.length > 0 ? (task.assignees.length === 1 ? (task.assignees[0].name || task.assignees[0].email.split('@')[0]) : task.assignees.length + ' personnes') : 'Non assigné'
+                  const assigneeAvatar = task.assignees?.length > 0 ? (task.assignees[0].avatar || '👤') : '👥'
+                  return (
+                    <div key={task.id} className="card bg-green-50 border-l-4 border-l-green-400">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-gray-500 line-through">{task.title}</p>
+                          {task.time && <p className="text-sm text-gray-400">🕐 {task.time}</p>}
+                          <p className="text-xs text-gray-400">{assigneeAvatar} {assigneeName} · ✓ {task.points} pts</p>
+                        </div>
+                        <button onClick={() => uncompleteTask(task.id)} className="w-8 h-8 rounded-full bg-green-500 hover:bg-orange-400 flex items-center justify-center transition-colors" title="Annuler">
+                          <span className="text-white text-sm">✓</span>
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Empty state */}
+          {pendingTasks.length === 0 && completedTasks.length === 0 && (
             <div className="card text-center py-8">
               <div className="text-4xl mb-2">📭</div>
               <p className="text-gray-500">Aucune tâche ce jour</p>
               <button onClick={() => setShowAddTask(true)} className="btn btn-primary mt-4">Ajouter une tâche</button>
             </div>
-          ) : (
-            <div className="space-y-2">
-              {selectedTasks.map((task) => {
-                const assigneeName = task.assignees?.length > 0 ? (task.assignees.length === 1 ? (task.assignees[0].name || task.assignees[0].email.split('@')[0]) : task.assignees.length + ' personnes') : 'Non assigné'
-                const assigneeAvatar = task.assignees?.length > 0 ? (task.assignees[0].avatar || '👤') : '👥'
-                return (
-                  <div key={task.id} className={`card border-l-4 ${task.priority === 'URGENT' ? 'border-l-red-500' : task.priority === 'HIGH' ? 'border-l-orange-500' : task.priority === 'MEDIUM' ? 'border-l-yellow-400' : 'border-l-green-400'}`}>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-gray-800">{task.title}</p>
-                        {task.time && <p className="text-sm text-indigo-600">🕐 {task.time}</p>}
-                        <p className="text-xs text-gray-400">{assigneeAvatar} {assigneeName} · ⭐ {task.points} pts</p>
-                      </div>
-                      <button onClick={() => completeTask(task.id)} className="w-8 h-8 rounded-full border-2 border-gray-300 hover:border-green-500 hover:bg-green-50 flex items-center justify-center group">
-                        <span className="opacity-0 group-hover:opacity-100 text-green-500">✓</span>
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
           )}
+
         </div>
       )}
 

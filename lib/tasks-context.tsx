@@ -38,6 +38,7 @@ type TasksContextType = {
     assigneeIds: string[]
   }) => Promise<void>
   completeTask: (id: string) => Promise<void>
+  uncompleteTask: (id: string) => Promise<void>
   deleteTask: (id: string) => Promise<void>
   updateTask: (id: string, updates: Partial<{ date: string; time: string | null; title: string }>) => Promise<void>
   updateTaskAssignees: (id: string, assigneeIds: string[]) => Promise<void>
@@ -120,6 +121,24 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const uncompleteTask = async (id: string) => {
+    try {
+      const res = await fetch(`/api/tasks/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "PENDING" }),
+      })
+      
+      if (res.ok) {
+        setTasks(prev => prev.map(t => 
+          t.id === id ? { ...t, status: "PENDING" as const, completedAt: null } : t
+        ))
+      }
+    } catch (error) {
+      console.error("Error uncompleting task:", error)
+    }
+  }
+
   const deleteTask = async (id: string) => {
     try {
       const res = await fetch(`/api/tasks/${id}`, {
@@ -173,7 +192,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   }
 
   const getTasksForDate = (date: string) => {
-    return tasks.filter(t => t.date === date && t.status === "PENDING")
+    return tasks.filter(t => t.date === date)
   }
 
   const getPendingTasks = () => {
@@ -186,6 +205,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       isLoading,
       addTask, 
       completeTask,
+      uncompleteTask,
       deleteTask,
       updateTask,
       updateTaskAssignees,

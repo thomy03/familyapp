@@ -34,12 +34,10 @@ export async function PUT(
 
     // Update assignees if provided
     if (assigneeIds !== undefined) {
-      // Delete existing assignees
       await prisma.taskAssignee.deleteMany({
         where: { taskId: params.id }
       })
       
-      // Create new assignees
       if (assigneeIds && assigneeIds.length > 0) {
         await prisma.taskAssignee.createMany({
           data: assigneeIds.map((userId: string) => ({
@@ -50,13 +48,29 @@ export async function PUT(
       }
     }
 
+    // Handle status changes with points
+    let pointsChange = 0
+    const wasCompleted = existingTask.status === "COMPLETED"
+    const willBeCompleted = status === "COMPLETED"
+    const willBePending = status === "PENDING"
+
+    // Completing task -> add points
+    if (willBeCompleted && !wasCompleted) {
+      pointsChange = existingTask.points
+    }
+    // Uncompleting task -> remove points  
+    else if (willBePending && wasCompleted) {
+      pointsChange = -existingTask.points
+    }
+
     // Update task
     const task = await prisma.task.update({
       where: { id: params.id },
       data: {
         ...updates,
         ...(status && { status }),
-        ...(status === "COMPLETED" && { completedAt: new Date() }),
+        ...(willBeCompleted && { completedAt: new Date() }),
+        ...(willBePending && { completedAt: null }),
       },
       include: {
         assignees: {
@@ -69,14 +83,15 @@ export async function PUT(
       }
     })
 
-    // If task completed, add points to all assignees
-    if (status === "COMPLETED" && existingTask.status !== "COMPLETED") {
-      const pointsPerPerson = Math.floor(task.points / Math.max(1, task.assignees.length))
+    // Update points for assignees
+    if (pointsChange !== 0 && task.assignees.length > 0) {
+      const pointsPerPerson = Math.floor(Math.abs(pointsChange) / task.assignees.length)
+      const increment = pointsChange > 0 ? pointsPerPerson : -pointsPerPerson
       
       for (const assignee of task.assignees) {
         await prisma.user.update({
           where: { id: assignee.userId },
-          data: { points: { increment: pointsPerPerson } }
+          data: { points: { increment } }
         })
       }
     }
