@@ -9,6 +9,7 @@ type Member = {
   email: string
   role: string
   points: number
+  avatar: string | null
 }
 
 type FamilyData = {
@@ -18,6 +19,17 @@ type FamilyData = {
   members: Member[]
 }
 
+type CompletedTask = {
+  id: string
+  title: string
+  points: number
+  completedAt: string
+}
+
+type MemberStats = {
+  totalCompleted: number
+}
+
 export default function FamilyPage() {
   const { data: session } = useSession()
   const [family, setFamily] = useState<FamilyData | null>(null)
@@ -25,12 +37,25 @@ export default function FamilyPage() {
   const [copied, setCopied] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
+  const [memberTasks, setMemberTasks] = useState<CompletedTask[]>([])
+  const [memberStats, setMemberStats] = useState<MemberStats | null>(null)
+  const [loadingTasks, setLoadingTasks] = useState(false)
 
   useEffect(() => {
     if (session?.user?.id) {
       fetchFamily()
     }
   }, [session])
+
+  // Fetch member tasks when selected
+  useEffect(() => {
+    if (selectedMember) {
+      fetchMemberTasks(selectedMember.id)
+    } else {
+      setMemberTasks([])
+      setMemberStats(null)
+    }
+  }, [selectedMember])
 
   const fetchFamily = async () => {
     try {
@@ -43,6 +68,21 @@ export default function FamilyPage() {
       console.error('Error fetching family:', err)
     }
     setLoading(false)
+  }
+
+  const fetchMemberTasks = async (memberId: string) => {
+    setLoadingTasks(true)
+    try {
+      const res = await fetch(`/api/members/${memberId}/tasks`)
+      if (res.ok) {
+        const data = await res.json()
+        setMemberTasks(data.tasks || [])
+        setMemberStats(data.stats || null)
+      }
+    } catch (err) {
+      console.error('Error fetching member tasks:', err)
+    }
+    setLoadingTasks(false)
   }
 
   const copyCode = () => {
@@ -78,6 +118,13 @@ export default function FamilyPage() {
     }
   }
 
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr)
+    return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  }
+
+  const getAvatar = (member: Member) => member.avatar || '👤'
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -102,7 +149,6 @@ export default function FamilyPage() {
   }
 
   const leader = [...family.members].sort((a, b) => b.points - a.points)[0]
-  const emojis = ['👨', '👩', '👦', '👧', '👶', '🧑', '👴', '👵']
 
   return (
     <div className="space-y-5">
@@ -148,7 +194,7 @@ export default function FamilyPage() {
               <p className="text-xs text-amber-600 font-medium">Leader de la semaine</p>
               <p className="font-bold text-gray-800">{leader.name || leader.email.split('@')[0]} · {leader.points} pts</p>
             </div>
-            <div className="text-2xl">{emojis[family.members.indexOf(leader) % emojis.length]}</div>
+            <div className="text-2xl">{getAvatar(leader)}</div>
           </div>
         </div>
       )}
@@ -168,7 +214,7 @@ export default function FamilyPage() {
             >
               <div className="relative">
                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-2xl">
-                  {emojis[i % emojis.length]}
+                  {getAvatar(member)}
                 </div>
               </div>
               <div className="flex-1">
@@ -196,12 +242,12 @@ export default function FamilyPage() {
       {selectedMember && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center" onClick={() => setSelectedMember(null)}>
           <div 
-            className="bg-white w-full max-w-lg rounded-t-3xl p-6 animate-slideUp"
+            className="bg-white w-full max-w-lg rounded-t-3xl p-6 animate-slideUp max-h-[80vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center gap-4 mb-6">
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-4xl">
-                {emojis[family.members.findIndex(m => m.id === selectedMember.id) % emojis.length]}
+                {getAvatar(selectedMember)}
               </div>
               <div className="flex-1">
                 <h3 className="text-xl font-bold text-gray-800">
@@ -220,12 +266,43 @@ export default function FamilyPage() {
             <div className="grid grid-cols-2 gap-3 mb-6">
               <div className="card text-center py-3 bg-indigo-50">
                 <p className="text-2xl font-bold text-indigo-600">{selectedMember.points}</p>
-                <p className="text-[10px] text-gray-500">Points</p>
+                <p className="text-[10px] text-gray-500">Points totaux</p>
               </div>
-              <div className="card text-center py-3 bg-gray-50">
-                <p className="text-sm font-medium text-gray-600 break-all">{selectedMember.email}</p>
-                <p className="text-[10px] text-gray-500">Email</p>
+              <div className="card text-center py-3 bg-green-50">
+                <p className="text-2xl font-bold text-green-600">{memberStats?.totalCompleted || 0}</p>
+                <p className="text-[10px] text-gray-500">Tâches complétées</p>
               </div>
+            </div>
+
+            {/* Completed Tasks History */}
+            <div>
+              <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                Historique des tâches ✅
+              </h4>
+              
+              {loadingTasks ? (
+                <div className="text-center py-4 text-gray-400">Chargement...</div>
+              ) : memberTasks.length === 0 ? (
+                <div className="text-center py-6 text-gray-400">
+                  <div className="text-3xl mb-2">📝</div>
+                  <p className="text-sm">Aucune tâche complétée</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {memberTasks.map(task => (
+                    <div key={task.id} className="card bg-gray-50 flex items-center gap-3">
+                      <div className="text-green-500">✓</div>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-800 text-sm">{task.title}</p>
+                        <p className="text-[10px] text-gray-400">{formatDate(task.completedAt)}</p>
+                      </div>
+                      {task.points > 0 && (
+                        <div className="text-xs font-bold text-indigo-600">+{task.points} pts</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -8,119 +8,112 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  password      String?
-  image         String?
-  avatar        String?
-  points        Int       @default(0)
-  streak        Int       @default(0)
-  lastActive    DateTime?
-  role          Role      @default(MEMBER)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  family        Family?   @relation(fields: [familyId], references: [id])
-  familyId      String?
-  accounts      Account[]
-  sessions      Session[]
-  tasksAssigned TaskAssignee[]
-  tasksCreated  Task[]    @relation("CreatedBy")
-  badges        UserBadge[]
-  rewards       RewardClaim[]
+  id                String             @id @default(cuid())
+  name              String?
+  email             String             @unique
+  emailVerified     DateTime?
+  password          String?
+  image             String?
+  points            Int                @default(0)
+  streak            Int                @default(0)
+  lastActive        DateTime?
+  role              Role               @default(MEMBER)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  familyId          String?
+  avatar            String?
+  accounts          Account[]
   pushSubscriptions PushSubscription[]
+  rewards           RewardClaim[]
+  sessions          Session[]
+  tasksCreated      Task[]             @relation("CreatedBy")
+  tasksAssigned     TaskAssignee[]
+  family            Family?            @relation(fields: [familyId], references: [id])
+  badges            UserBadge[]
 }
 
 model Family {
-  id          String   @id @default(cuid())
-  name        String
-  inviteCode  String   @unique @default(cuid())
-  createdAt   DateTime @default(now())
-  
-  members     User[]
-  tasks       Task[]
-  rewards     Reward[]
+  id         String   @id @default(cuid())
+  name       String
+  inviteCode String   @unique @default(cuid())
+  createdAt  DateTime @default(now())
+  rewards    Reward[]
+  tasks      Task[]
+  members    User[]
 }
 
 model Task {
-  id          String     @id @default(cuid())
+  id          String         @id @default(cuid())
   title       String
   description String?
   date        String
-  time        String?
   deadline    DateTime?
-  points      Int        @default(10)
-  priority    Priority   @default(MEDIUM)
-  difficulty  String     @default("normal")
-  duration    String     @default("15")
-  status      TaskStatus @default(PENDING)
+  points      Int            @default(10)
+  priority    Priority       @default(MEDIUM)
+  difficulty  String         @default("normal")
+  duration    String         @default("15")
+  status      TaskStatus     @default(PENDING)
   completedAt DateTime?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-
-  family      Family?    @relation(fields: [familyId], references: [id])
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
   familyId    String?
-  assignees   TaskAssignee[]
-  createdBy   User?      @relation("CreatedBy", fields: [createdById], references: [id])
   createdById String?
+  time        String?
+  createdBy   User?          @relation("CreatedBy", fields: [createdById], references: [id])
+  family      Family?        @relation(fields: [familyId], references: [id])
+  assignees   TaskAssignee[]
 }
 
 model TaskAssignee {
-  id        String   @id @default(cuid())
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  taskId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    String
+  id         String   @id @default(cuid())
+  taskId     String
+  userId     String
   assignedAt DateTime @default(now())
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([taskId, userId])
 }
 
 model Badge {
-  id          String   @id @default(cuid())
-  name        String   @unique
+  id          String      @id @default(cuid())
+  name        String      @unique
   description String
   icon        String
-  points      Int      @default(0)
-  
+  points      Int         @default(0)
   users       UserBadge[]
 }
 
 model UserBadge {
-  id        String   @id @default(cuid())
-  earnedAt  DateTime @default(now())
-  
-  user      User     @relation(fields: [userId], references: [id])
-  userId    String
-  badge     Badge    @relation(fields: [badgeId], references: [id])
-  badgeId   String
-  
+  id       String   @id @default(cuid())
+  earnedAt DateTime @default(now())
+  userId   String
+  badgeId  String
+  badge    Badge    @relation(fields: [badgeId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+
   @@unique([userId, badgeId])
 }
 
 model Reward {
-  id          String   @id @default(cuid())
+  id          String        @id @default(cuid())
   title       String
   description String?
   cost        Int
   icon        String?
-  createdAt   DateTime @default(now())
-  
-  family      Family   @relation(fields: [familyId], references: [id])
+  createdAt   DateTime      @default(now())
   familyId    String
+  family      Family        @relation(fields: [familyId], references: [id])
   claims      RewardClaim[]
 }
 
 model RewardClaim {
   id        String   @id @default(cuid())
   claimedAt DateTime @default(now())
-  
-  user      User     @relation(fields: [userId], references: [id])
   userId    String
-  reward    Reward   @relation(fields: [rewardId], references: [id])
   rewardId  String
+  reward    Reward   @relation(fields: [rewardId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
 }
 
 model Account {
@@ -129,15 +122,14 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -158,6 +150,17 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 enum Role {
   ADMIN
   MEMBER
@@ -176,15 +179,4 @@ enum Priority {
   MEDIUM
   HIGH
   URGENT
-}
-
-model PushSubscription {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  endpoint  String   @unique
-  p256dh    String
-  auth      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
